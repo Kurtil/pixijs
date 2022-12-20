@@ -363,7 +363,7 @@ export class Graphics extends Container
         if (this.currentPath)
         {
             const points = this.currentPath.points;
-            const len = this.currentPath.points.length;
+            const len = points.length;
 
             if (len > 2)
             {
@@ -409,8 +409,9 @@ export class Graphics extends Container
     public moveTo(x: number, y: number): this
     {
         this.startPoly();
-        this.currentPath.points[0] = x;
-        this.currentPath.points[1] = y;
+        const { points } = this.currentPath;
+        points[0] = x;
+        points[1] = y;
 
         return this;
     }
@@ -430,9 +431,11 @@ export class Graphics extends Container
         }
 
         // remove duplicates..
-        const points = this.currentPath.points;
-        const fromX = points[points.length - 2];
-        const fromY = points[points.length - 1];
+        const { points } = this.currentPath;
+        const len = points.length;
+
+        const fromX = points[len - 2];
+        const fromY = points[len - 1];
 
         if (fromX !== x || fromY !== y)
         {
@@ -475,7 +478,7 @@ export class Graphics extends Container
     {
         this._initCurve();
 
-        const points = this.currentPath.points;
+        const { points } = this.currentPath;
 
         if (points.length === 0)
         {
@@ -521,9 +524,7 @@ export class Graphics extends Container
     {
         this._initCurve(x1, y1);
 
-        const points = this.currentPath.points;
-
-        const result = ArcUtils.curveTo(x1, y1, x2, y2, radius, points);
+        const result = ArcUtils.curveTo(x1, y1, x2, y2, radius, this.currentPath.points);
 
         if (result)
         {
@@ -576,7 +577,7 @@ export class Graphics extends Container
         const eps = this._geometry.closePointEps;
 
         // If the currentPath exists, take its points. Otherwise call `moveTo` to start a path.
-        let points = this.currentPath ? this.currentPath.points : null;
+        let points = this.currentPath?.points ?? null;
 
         if (points)
         {
@@ -819,12 +820,13 @@ export class Graphics extends Container
     public isFastRect(): boolean
     {
         const data = this._geometry.graphicsData;
+        const loneRectangle = data.length === 1 && data[0];
 
-        return data.length === 1
-            && data[0].shape.type === SHAPES.RECT
-            && !data[0].matrix
-            && !data[0].holes.length
-            && !(data[0].lineStyle.visible && data[0].lineStyle.width);
+        return loneRectangle
+            && loneRectangle.shape.type === SHAPES.RECT
+            && !loneRectangle.matrix
+            && !loneRectangle.holes.length
+            && !(loneRectangle.lineStyle.visible && loneRectangle.lineStyle.width);
     }
 
     /**
@@ -921,10 +923,8 @@ export class Graphics extends Container
         this.calculateVertices();
         this.calculateTints();
 
-        for (let i = 0, l = this.batches.length; i < l; i++)
+        for (let batch of this.batches)
         {
-            const batch = this.batches[i];
-
             batch.worldAlpha = this.worldAlpha * batch.alpha;
 
             renderer.plugins[this.pluginName].render(batch);
@@ -943,7 +943,6 @@ export class Graphics extends Container
         const tint = this.tint;
         const worldAlpha = this.worldAlpha;
         const uniforms = shader.uniforms;
-        const drawCalls = geometry.drawCalls;
 
         // lets set the transfomr
         uniforms.translationMatrix = this.transform.worldTransform;
@@ -966,9 +965,9 @@ export class Graphics extends Container
         renderer.state.set(this.state);
 
         // then render the rest of them...
-        for (let i = 0, l = drawCalls.length; i < l; i++)
+        for (let drawCall of geometry.drawCalls)
         {
-            this._renderDrawCallDirect(renderer, geometry.drawCalls[i]);
+            this._renderDrawCallDirect(renderer, drawCall);
         }
     }
 
@@ -1074,10 +1073,8 @@ export class Graphics extends Container
 
             const tintRGB = utils.hex2rgb(this.tint, temp);
 
-            for (let i = 0; i < this.batches.length; i++)
+            for (let batch of this.batches)
             {
-                const batch = this.batches[i];
-
                 const batchTint = batch._batchRGB;
 
                 const r = (tintRGB[0] * batchTint[0]) * 255;
@@ -1106,20 +1103,14 @@ export class Graphics extends Container
 
         this._transformID = wtID;
 
-        const wt = this.transform.worldTransform;
-        const a = wt.a;
-        const b = wt.b;
-        const c = wt.c;
-        const d = wt.d;
-        const tx = wt.tx;
-        const ty = wt.ty;
+        const { a, b, c, d, tx, ty } = this.transform.worldTransform;
 
         const data = this._geometry.points;// batch.vertexDataOriginal;
         const vertexData = this.vertexData;
 
         let count = 0;
 
-        for (let i = 0; i < data.length; i += 2)
+        for (let i = 0, len = data.length; i < len; i += 2)
         {
             const x = data[i];
             const y = data[i + 1];
